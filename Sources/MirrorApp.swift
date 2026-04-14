@@ -446,22 +446,26 @@ private final class NavigationWindowController: NSWindowController {
     private let adbPath = "/opt/homebrew/bin/adb"
     private var trackingTimer: Timer?
 
+    private static let panelHeight: CGFloat = 48
+
     init(device: String) {
         self.device = device
 
-        let rect = NSRect(x: 0, y: 0, width: 240, height: 64)
+        let rect = NSRect(x: 0, y: 0, width: 240, height: Self.panelHeight)
         let panel = NSPanel(
             contentRect: rect,
-            styleMask: [.nonactivatingPanel, .hudWindow, .utilityWindow, .titled, .closable],
+            styleMask: [.borderless, .nonactivatingPanel],
             backing: .buffered,
             defer: false
         )
-        panel.title = "Mirror Controls"
         panel.isFloatingPanel = true
         panel.level = .floating
         panel.hidesOnDeactivate = false
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         panel.becomesKeyOnlyIfNeeded = true
+        panel.backgroundColor = .clear
+        panel.isOpaque = false
+        panel.hasShadow = true
 
         super.init(window: panel)
         buildButtons()
@@ -488,16 +492,23 @@ private final class NavigationWindowController: NSWindowController {
             return
         }
 
+        contentView.wantsLayer = true
+        contentView.layer?.cornerRadius = 12
+        contentView.layer?.masksToBounds = true
+        contentView.layer?.backgroundColor = NSColor.black.withAlphaComponent(0.82).cgColor
+        contentView.layer?.borderColor = NSColor.white.withAlphaComponent(0.08).cgColor
+        contentView.layer?.borderWidth = 1
+
         let stack = NSStackView()
         stack.translatesAutoresizingMaskIntoConstraints = false
         stack.orientation = .horizontal
         stack.distribution = .fillEqually
-        stack.spacing = 8
-        stack.edgeInsets = NSEdgeInsets(top: 6, left: 10, bottom: 6, right: 10)
+        stack.spacing = 0
+        stack.edgeInsets = NSEdgeInsets(top: 0, left: 0, bottom: 0, right: 0)
 
-        stack.addArrangedSubview(makeButton(title: "◁", accessibility: "Back", action: #selector(pressBack)))
-        stack.addArrangedSubview(makeButton(title: "○", accessibility: "Home", action: #selector(pressHome)))
-        stack.addArrangedSubview(makeButton(title: "▢", accessibility: "Recents", action: #selector(pressRecents)))
+        stack.addArrangedSubview(makeButton(symbol: "chevron.left", fallback: "◁", accessibility: "Back", action: #selector(pressBack)))
+        stack.addArrangedSubview(makeButton(symbol: "circle", fallback: "○", accessibility: "Home", action: #selector(pressHome)))
+        stack.addArrangedSubview(makeButton(symbol: "square", fallback: "▢", accessibility: "Recents", action: #selector(pressRecents)))
 
         contentView.addSubview(stack)
         NSLayoutConstraint.activate([
@@ -508,12 +519,26 @@ private final class NavigationWindowController: NSWindowController {
         ])
     }
 
-    private func makeButton(title: String, accessibility: String, action: Selector) -> NSButton {
-        let button = NSButton(title: title, target: self, action: action)
-        button.font = .systemFont(ofSize: 18, weight: .medium)
-        button.bezelStyle = .rounded
+    private func makeButton(symbol: String, fallback: String, accessibility: String, action: Selector) -> NSButton {
+        let button = NSButton()
+        button.target = self
+        button.action = action
+        button.isBordered = false
+        button.bezelStyle = .regularSquare
+        button.title = ""
         button.setAccessibilityLabel(accessibility)
         button.toolTip = accessibility
+        button.contentTintColor = NSColor.white.withAlphaComponent(0.92)
+
+        if let image = NSImage(systemSymbolName: symbol, accessibilityDescription: accessibility) {
+            let config = NSImage.SymbolConfiguration(pointSize: 18, weight: .regular)
+            button.image = image.withSymbolConfiguration(config)
+            button.imagePosition = .imageOnly
+        } else {
+            button.title = fallback
+            button.font = .systemFont(ofSize: 20, weight: .regular)
+        }
+
         return button
     }
 
@@ -549,13 +574,15 @@ private final class NavigationWindowController: NSWindowController {
             return
         }
 
-        let panelSize = window.frame.size
-        let x = mirrorFrame.midX - panelSize.width / 2
-        let y = mirrorFrame.minY - panelSize.height - 8
-        let newOrigin = NSPoint(x: x, y: y)
+        let targetFrame = NSRect(
+            x: mirrorFrame.minX,
+            y: mirrorFrame.minY - Self.panelHeight,
+            width: mirrorFrame.width,
+            height: Self.panelHeight
+        )
 
-        if window.frame.origin != newOrigin {
-            window.setFrameOrigin(newOrigin)
+        if window.frame != targetFrame {
+            window.setFrame(targetFrame, display: true)
         }
     }
 
