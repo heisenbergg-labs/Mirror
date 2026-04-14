@@ -172,30 +172,99 @@ CURRENT_DEVICE_FILE="$STATE_DIR/current-device"
 print -r -- "$target" > "$CURRENT_DEVICE_FILE"
 trap '/bin/rm -f "$CURRENT_DEVICE_FILE"; log "--- Mirror session end ---"' EXIT INT TERM
 
-log "launching helper for $target"
-/usr/bin/open -n "$HELPER_APP" --args \
-  --window-title Mirror \
-  -s "$target" \
-  --video-bit-rate 20M \
-  --video-codec h265 \
-  --video-buffer 0 \
-  --no-audio \
-  --turn-screen-off \
-  --stay-awake
+saved_x=""
+saved_y=""
+saved_w=""
+saved_h=""
+WINDOW_FRAME_FILE="$STATE_DIR/window-frame"
+if [[ -f "$WINDOW_FRAME_FILE" ]]; then
+  read -r saved_x saved_y saved_w saved_h < "$WINDOW_FRAME_FILE" 2>/dev/null || true
+  if [[ -n "$saved_x" && -n "$saved_y" && -n "$saved_w" && -n "$saved_h" ]]; then
+    log "restoring window frame: x=$saved_x y=$saved_y w=$saved_w h=$saved_h"
+  else
+    saved_x=""
+  fi
+fi
 
-helper_pid=""
-for _ in {1..20}; do
-  helper_pid="$(/usr/bin/pgrep -f "MirrorScreen.app/Contents/MacOS/MirrorScreen" | /usr/bin/head -1)"
-  [[ -n "$helper_pid" ]] && break
-  /bin/sleep 0.2
-done
+launch_helper() {
+  local -a args
+  args=(
+    --window-title Mirror
+    -s "$target"
+    --video-bit-rate 20M
+    --video-codec h265
+    --video-buffer 0
+    --no-audio
+    --turn-screen-off
+    --stay-awake
+  )
 
-if [[ -n "$helper_pid" ]]; then
-  log "helper pid: $helper_pid"
-  while /bin/kill -0 "$helper_pid" 2>/dev/null; do
+  if [[ -n "$saved_x" ]]; then
+    args+=(--window-x "$saved_x" --window-y "$saved_y" --window-width "$saved_w" --window-height "$saved_h")
+  fi
+
+  log "launching helper for $target"
+  /usr/bin/open -n "$HELPER_APP" --args "${args[@]}"
+
+  local pid=""
+  local _
+  for _ in {1..20}; do
+    pid="$(/usr/bin/pgrep -f "MirrorScreen.app/Contents/MacOS/MirrorScreen" | /usr/bin/head -1)"
+    [[ -n "$pid" ]] && break
+    /bin/sleep 0.2
+  done
+
+  if [[ -z "$pid" ]]; then
+    log "helper pid not found after launch"
+    return 1
+  fi
+
+  log "helper pid: $pid"
+  while /bin/kill -0 "$pid" 2>/dev/null; do
     /bin/sleep 0.5
   done
-  log "helper pid $helper_pid exited"
-else
-  log "helper pid not found after launch"
-fi
+  log "helper pid $pid exited"
+  return 0
+}
+
+target_reachable() {
+  if [[ "$target" == *:* ]]; then
+    local result
+    result="$("$ADB" connect "$target" 2>&1)"
+    [[ "$result" == *"connected to"* || "$result" == *"already connected"* ]]
+  else
+    [[ "$(device_state "$target")" == "device" ]]
+  fi
+}
+
+try_reconnect() {
+  local _
+  for _ in {1..30}; do
+    /bin/sleep 1
+    if target_reachable; then
+      return 0
+    fi
+  done
+  return 1
+}
+
+while true; do
+  launch_helper || break
+
+  if target_reachable; then
+    log "helper exited with target still reachable; treating as user-initiated close"
+    break
+  fi
+
+  log "helper exited and target unreachable; attempting reconnect for up to 30s"
+  if try_reconnect; then
+    log "reconnected to $target, relaunching helper"
+    continue
+  fi
+
+  log "reconnect failed after 30s"
+  if [[ -n "$(first_usb_device)" ]]; then
+    fail "Mirror lost your phone over Wi-Fi.\n\nYour phone is back on USB though — open Mirror again and it will re-enable Wi-Fi mirroring.\n\nLog: ~/Library/Logs/Mirror/mirror.log"
+  fi
+  fail "Mirror lost your phone and couldn't reconnect.\n\nPhone: $target\n\nIf your phone restarted, plug it in with USB once and open Mirror again.\n\nOtherwise make sure the phone is awake and on the same Wi-Fi.\n\nLog: ~/Library/Logs/Mirror/mirror.log"
+done

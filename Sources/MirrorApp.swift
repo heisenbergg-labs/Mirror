@@ -445,6 +445,7 @@ private final class NavigationWindowController: NSWindowController {
     private let device: String
     private let adbPath = "/opt/homebrew/bin/adb"
     private var trackingTimer: Timer?
+    private var lastPersistedFrame: CGRect?
 
     private static let panelHeight: CGFloat = 48
 
@@ -590,6 +591,14 @@ private final class NavigationWindowController: NSWindowController {
     }
 
     private func findMirrorWindowFrame() -> NSRect? {
+        guard let cgFrame = findMirrorCGFrame() else {
+            return nil
+        }
+        persistFrameIfChanged(cgFrame)
+        return flipToScreenCoordinates(cgFrame)
+    }
+
+    private func findMirrorCGFrame() -> CGRect? {
         let options: CGWindowListOption = [.optionOnScreenOnly, .excludeDesktopElements]
         guard let list = CGWindowListCopyWindowInfo(options, kCGNullWindowID) as? [[String: Any]] else {
             return nil
@@ -610,9 +619,14 @@ private final class NavigationWindowController: NSWindowController {
                 continue
             }
 
+            let layer = entry[kCGWindowLayer as String] as? Int ?? 0
+            guard layer == 0 else {
+                continue
+            }
+
             guard let boundsDict = entry[kCGWindowBounds as String] as? [String: CGFloat],
                   let cgRect = CGRect(dictionaryRepresentation: boundsDict as CFDictionary),
-                  cgRect.width >= 120, cgRect.height >= 120 else {
+                  cgRect.width >= 300, cgRect.height >= 300 else {
                 continue
             }
 
@@ -623,7 +637,39 @@ private final class NavigationWindowController: NSWindowController {
             }
         }
 
-        return best.map { flipToScreenCoordinates($0) }
+        return best
+    }
+
+    private func persistFrameIfChanged(_ frame: CGRect) {
+        guard isFrameOnVisibleScreen(frame) else {
+            return
+        }
+        if let previous = lastPersistedFrame, framesMatch(previous, frame) {
+            return
+        }
+        lastPersistedFrame = frame
+
+        let supportURL = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
+        guard let directory = supportURL?.appendingPathComponent("Mirror") else {
+            return
+        }
+        try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let url = directory.appendingPathComponent("window-frame")
+
+        let line = "\(Int(frame.origin.x)) \(Int(frame.origin.y)) \(Int(frame.size.width)) \(Int(frame.size.height))\n"
+        try? line.write(to: url, atomically: true, encoding: .utf8)
+    }
+
+    private func isFrameOnVisibleScreen(_ cgFrame: CGRect) -> Bool {
+        let ns = flipToScreenCoordinates(cgFrame)
+        return NSScreen.screens.contains { $0.visibleFrame.intersects(ns) }
+    }
+
+    private func framesMatch(_ lhs: CGRect, _ rhs: CGRect) -> Bool {
+        abs(lhs.origin.x - rhs.origin.x) < 4 &&
+            abs(lhs.origin.y - rhs.origin.y) < 4 &&
+            abs(lhs.size.width - rhs.size.width) < 4 &&
+            abs(lhs.size.height - rhs.size.height) < 4
     }
 
     private func flipToScreenCoordinates(_ rect: CGRect) -> NSRect {
