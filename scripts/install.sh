@@ -61,6 +61,7 @@ patched = data[:name_offset] + b"Mirror" + data[name_offset + len(engine_name):]
 binary.write_bytes(patched)
 PY
 chmod +x "$ENGINE_BINARY"
+codesign --force --sign - --preserve-metadata=entitlements,requirements,flags,runtime "$ENGINE_BINARY"
 cat > "$HELPER_APP/Contents/Info.plist" <<'PLIST'
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
@@ -83,6 +84,11 @@ cat > "$HELPER_APP/Contents/Info.plist" <<'PLIST'
   <string>0.1.2</string>
   <key>CFBundleVersion</key>
   <string>0.1.2</string>
+  <key>LSEnvironment</key>
+  <dict>
+    <key>SCRCPY_ICON_PATH</key>
+    <string>/Applications/Mirror.app/Contents/Helpers/MirrorScreen.app/Contents/Resources/Mirror.png</string>
+  </dict>
   <key>LSMinimumSystemVersion</key>
   <string>13.0</string>
   <key>LSUIElement</key>
