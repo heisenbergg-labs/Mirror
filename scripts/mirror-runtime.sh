@@ -195,8 +195,6 @@ launch_helper() {
     --video-codec h265
     --video-buffer 0
     --no-audio
-    --turn-screen-off
-    --stay-awake
   )
 
   if [[ -n "$saved_x" ]]; then
