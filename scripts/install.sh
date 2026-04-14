@@ -8,6 +8,7 @@ ICONSET_DIR="$BUILD_DIR/Mirror.iconset"
 ICON_FILE="$BUILD_DIR/applet.icns"
 SOURCE_ICON="$ROOT_DIR/assets/mirror-icon.png"
 SOURCE_SCRIPT="$ROOT_DIR/MirrorLauncher.applescript"
+RUNTIME_SCRIPT="$ROOT_DIR/scripts/mirror-runtime.sh"
 DEST_APP="/Applications/Mirror.app"
 
 ENGINE_NAME="sc""rcpy"
@@ -33,6 +34,8 @@ python3 "$ROOT_DIR/scripts/make_icns.py" "$ICONSET_DIR" "$ICON_FILE"
 
 osacompile -o "$APP_DIR" "$SOURCE_SCRIPT"
 cp "$ICON_FILE" "$APP_DIR/Contents/Resources/applet.icns"
+cp "$RUNTIME_SCRIPT" "$APP_DIR/Contents/Resources/mirror-runtime.sh"
+chmod +x "$APP_DIR/Contents/Resources/mirror-runtime.sh"
 ditto "$APP_DIR" "$DEST_APP"
 touch "$DEST_APP"
 qlmanage -r cache >/dev/null 2>&1 || true
