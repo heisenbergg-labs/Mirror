@@ -15,10 +15,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let releasesURL = URL(string: "https://github.com/heisenbergg-labs/Mirror/releases/latest")!
     private var task: Process?
     private var outputData = Data()
+    private var splashWindowController: SplashWindowController?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
         configureMenu()
+        showSplash()
         checkForUpdates(silent: true)
         runMirror()
     }
@@ -69,6 +71,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func runMirror() {
         guard let runtimeURL = Bundle.main.resourceURL?.appendingPathComponent("mirror-runtime.sh") else {
+            hideSplash()
             showAlert("Mirror could not find its launcher.")
             NSApp.terminate(nil)
             return
@@ -92,6 +95,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         task.terminationHandler = { [weak self] task in
             DispatchQueue.main.async {
                 pipe.fileHandleForReading.readabilityHandler = nil
+                self?.hideSplash()
                 guard task.terminationStatus != 0 else {
                     NSApp.terminate(nil)
                     return
@@ -105,7 +109,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         do {
             try task.run()
+            scheduleSplashDismissal()
         } catch {
+            hideSplash()
             showAlert("Mirror could not start.\n\n\(error.localizedDescription)")
             NSApp.terminate(nil)
         }
@@ -227,6 +233,172 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         alert.alertStyle = .warning
         alert.addButton(withTitle: "OK")
         alert.runModal()
+    }
+
+    private func showSplash() {
+        let controller = SplashWindowController()
+        splashWindowController = controller
+        controller.showWindow(nil)
+    }
+
+    private func scheduleSplashDismissal() {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.4) { [weak self] in
+            self?.hideSplash()
+        }
+    }
+
+    private func hideSplash() {
+        splashWindowController?.closeWithFade()
+        splashWindowController = nil
+    }
+}
+
+private final class SplashWindowController: NSWindowController {
+    private let iconView = NSImageView()
+    private let titleLabel = NSTextField(labelWithString: "Mirror")
+    private let statusLabel = NSTextField(labelWithString: "Connecting to your phone")
+
+    convenience init() {
+        let contentView = NSView(frame: NSRect(x: 0, y: 0, width: 360, height: 300))
+        let window = NSWindow(
+            contentRect: contentView.bounds,
+            styleMask: [.borderless],
+            backing: .buffered,
+            defer: false
+        )
+
+        window.backgroundColor = .clear
+        window.contentView = contentView
+        window.hasShadow = true
+        window.isOpaque = false
+        window.level = .floating
+        window.collectionBehavior = [.transient, .ignoresCycle]
+
+        self.init(window: window)
+    }
+
+    override func windowDidLoad() {
+        super.windowDidLoad()
+        configureWindow()
+    }
+
+    override func showWindow(_ sender: Any?) {
+        super.showWindow(sender)
+        window?.center()
+        window?.alphaValue = 0
+        window?.makeKeyAndOrderFront(sender)
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = 0.18
+            window?.animator().alphaValue = 1
+        }
+        startAnimations()
+    }
+
+    func closeWithFade() {
+        guard let window, window.isVisible else {
+            close()
+            return
+        }
+
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = 0.18
+            window.animator().alphaValue = 0
+        } completionHandler: { [weak self] in
+            self?.close()
+        }
+    }
+
+    private func configureWindow() {
+        guard let contentView = window?.contentView else {
+            return
+        }
+
+        contentView.wantsLayer = true
+        contentView.layer?.cornerRadius = 8
+        contentView.layer?.masksToBounds = true
+        contentView.layer?.backgroundColor = NSColor.windowBackgroundColor.withAlphaComponent(0.94).cgColor
+        contentView.layer?.borderColor = NSColor.separatorColor.withAlphaComponent(0.55).cgColor
+        contentView.layer?.borderWidth = 1
+
+        let glowView = NSView()
+        glowView.translatesAutoresizingMaskIntoConstraints = false
+        glowView.wantsLayer = true
+        glowView.layer?.cornerRadius = 70
+        glowView.layer?.backgroundColor = NSColor.controlAccentColor.withAlphaComponent(0.18).cgColor
+
+        iconView.translatesAutoresizingMaskIntoConstraints = false
+        iconView.image = splashIcon()
+        iconView.imageScaling = .scaleProportionallyUpOrDown
+        iconView.wantsLayer = true
+        iconView.layer?.anchorPoint = CGPoint(x: 0.5, y: 0.5)
+
+        titleLabel.translatesAutoresizingMaskIntoConstraints = false
+        titleLabel.alignment = .center
+        titleLabel.font = .systemFont(ofSize: 27, weight: .semibold)
+        titleLabel.textColor = .labelColor
+
+        statusLabel.translatesAutoresizingMaskIntoConstraints = false
+        statusLabel.alignment = .center
+        statusLabel.font = .systemFont(ofSize: 13, weight: .medium)
+        statusLabel.textColor = .secondaryLabelColor
+
+        contentView.addSubview(glowView)
+        contentView.addSubview(iconView)
+        contentView.addSubview(titleLabel)
+        contentView.addSubview(statusLabel)
+
+        NSLayoutConstraint.activate([
+            glowView.centerXAnchor.constraint(equalTo: contentView.centerXAnchor),
+            glowView.topAnchor.constraint(equalTo: contentView.topAnchor, constant: 44),
+            glowView.widthAnchor.constraint(equalToConstant: 140),
+            glowView.heightAnchor.constraint(equalToConstant: 140),
+
+            iconView.centerXAnchor.constraint(equalTo: contentView.centerXAnchor),
+            iconView.topAnchor.constraint(equalTo: contentView.topAnchor, constant: 58),
+            iconView.widthAnchor.constraint(equalToConstant: 112),
+            iconView.heightAnchor.constraint(equalToConstant: 112),
+
+            titleLabel.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 24),
+            titleLabel.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -24),
+            titleLabel.topAnchor.constraint(equalTo: iconView.bottomAnchor, constant: 22),
+
+            statusLabel.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 24),
+            statusLabel.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -24),
+            statusLabel.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: 8)
+        ])
+    }
+
+    private func startAnimations() {
+        guard let iconLayer = iconView.layer else {
+            return
+        }
+
+        let pulse = CABasicAnimation(keyPath: "transform.scale")
+        pulse.fromValue = 0.96
+        pulse.toValue = 1.06
+        pulse.duration = 0.85
+        pulse.autoreverses = true
+        pulse.repeatCount = .infinity
+        pulse.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+
+        let float = CABasicAnimation(keyPath: "position.y")
+        float.byValue = 8
+        float.duration = 1.15
+        float.autoreverses = true
+        float.repeatCount = .infinity
+        float.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+
+        iconLayer.add(pulse, forKey: "mirrorIconPulse")
+        iconLayer.add(float, forKey: "mirrorIconFloat")
+    }
+
+    private func splashIcon() -> NSImage {
+        if let resourceURL = Bundle.main.url(forResource: "Mirror", withExtension: "png"),
+           let image = NSImage(contentsOf: resourceURL) {
+            return image
+        }
+
+        return NSApp.applicationIconImage
     }
 }
 
