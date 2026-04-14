@@ -275,10 +275,6 @@ private final class SplashWindowController: NSWindowController {
         window.collectionBehavior = [.transient, .ignoresCycle]
 
         self.init(window: window)
-    }
-
-    override func windowDidLoad() {
-        super.windowDidLoad()
         configureWindow()
     }
 
@@ -303,8 +299,8 @@ private final class SplashWindowController: NSWindowController {
         NSAnimationContext.runAnimationGroup { context in
             context.duration = 0.18
             window.animator().alphaValue = 0
-        } completionHandler: { [weak self] in
-            self?.close()
+        } completionHandler: {
+            self.close()
         }
     }
 
@@ -330,7 +326,6 @@ private final class SplashWindowController: NSWindowController {
         iconView.image = splashIcon()
         iconView.imageScaling = .scaleProportionallyUpOrDown
         iconView.wantsLayer = true
-        iconView.layer?.anchorPoint = CGPoint(x: 0.5, y: 0.5)
 
         titleLabel.translatesAutoresizingMaskIntoConstraints = false
         titleLabel.alignment = .center
