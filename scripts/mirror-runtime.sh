@@ -10,7 +10,7 @@ STATE_DIR="$HOME/Library/Application Support/Mirror"
 LAST_DEVICE_FILE="$STATE_DIR/last-device"
 
 fail() {
-  print -r -- "$1"
+  /usr/bin/printf "%b\n" "$1"
   exit 1
 }
 
