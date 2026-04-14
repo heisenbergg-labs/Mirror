@@ -568,8 +568,8 @@ private final class NavigationWindowController: NSWindowController {
         }
 
         guard let mirrorFrame = findMirrorWindowFrame() else {
-            if window.frame.origin == .zero {
-                window.center()
+            if window.isVisible {
+                window.orderOut(nil)
             }
             return
         }
@@ -583,6 +583,9 @@ private final class NavigationWindowController: NSWindowController {
 
         if window.frame != targetFrame {
             window.setFrame(targetFrame, display: true)
+        }
+        if !window.isVisible {
+            window.orderFront(nil)
         }
     }
 
