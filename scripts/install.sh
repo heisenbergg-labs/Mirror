@@ -35,6 +35,7 @@ python3 "$ROOT_DIR/scripts/make_icns.py" "$ICONSET_DIR" "$ICON_FILE"
 mkdir -p "$APP_DIR/Contents/MacOS" "$APP_DIR/Contents/Resources"
 swiftc "$SOURCE_APP" -framework AppKit -o "$APP_DIR/Contents/MacOS/Mirror"
 cp "$ICON_FILE" "$APP_DIR/Contents/Resources/Mirror.icns"
+cp "$SOURCE_ICON" "$APP_DIR/Contents/Resources/Mirror.png"
 cp "$RUNTIME_SCRIPT" "$APP_DIR/Contents/Resources/mirror-runtime.sh"
 chmod +x "$APP_DIR/Contents/Resources/mirror-runtime.sh"
 cat > "$APP_DIR/Contents/Info.plist" <<'PLIST'
@@ -56,9 +57,9 @@ cat > "$APP_DIR/Contents/Info.plist" <<'PLIST'
   <key>CFBundlePackageType</key>
   <string>APPL</string>
   <key>CFBundleShortVersionString</key>
-  <string>1.1.1</string>
+  <string>0.1.1</string>
   <key>CFBundleVersion</key>
-  <string>1.1.1</string>
+  <string>0.1.1</string>
   <key>LSMinimumSystemVersion</key>
   <string>13.0</string>
   <key>NSHighResolutionCapable</key>
