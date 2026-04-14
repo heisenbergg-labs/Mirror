@@ -592,26 +592,35 @@ private final class NavigationWindowController: NSWindowController {
             return nil
         }
 
+        let ownWindowNumber = window?.windowNumber ?? 0
+        var best: CGRect?
+        var bestArea: CGFloat = 0
+
         for entry in list {
             let owner = entry[kCGWindowOwnerName as String] as? String ?? ""
-            let name = entry[kCGWindowName as String] as? String ?? ""
-            guard owner == "MirrorScreen" || name == "Mirror" else {
+            guard owner == "Mirror" || owner == "MirrorScreen" else {
+                continue
+            }
+
+            if let windowNumber = entry[kCGWindowNumber as String] as? Int,
+               windowNumber == ownWindowNumber {
                 continue
             }
 
             guard let boundsDict = entry[kCGWindowBounds as String] as? [String: CGFloat],
-                  let cgRect = CGRect(dictionaryRepresentation: boundsDict as CFDictionary) else {
+                  let cgRect = CGRect(dictionaryRepresentation: boundsDict as CFDictionary),
+                  cgRect.width >= 120, cgRect.height >= 120 else {
                 continue
             }
 
-            if cgRect.width < 60 || cgRect.height < 60 {
-                continue
+            let area = cgRect.width * cgRect.height
+            if area > bestArea {
+                best = cgRect
+                bestArea = area
             }
-
-            return flipToScreenCoordinates(cgRect)
         }
 
-        return nil
+        return best.map { flipToScreenCoordinates($0) }
     }
 
     private func flipToScreenCoordinates(_ rect: CGRect) -> NSRect {
