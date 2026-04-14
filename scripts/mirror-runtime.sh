@@ -120,8 +120,7 @@ trap '/bin/rm -f "$CURRENT_DEVICE_FILE"' EXIT INT TERM
 /usr/bin/open -n "$HELPER_APP" --args \
   --window-title Mirror \
   -s "$target" \
-  --max-size 1280 \
-  --video-bit-rate 4M \
+  --video-bit-rate 20M \
   --video-codec h265 \
   --video-buffer 0 \
   --no-audio
