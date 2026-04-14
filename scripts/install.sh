@@ -81,9 +81,9 @@ cat > "$HELPER_APP/Contents/Info.plist" <<'PLIST'
   <key>CFBundlePackageType</key>
   <string>APPL</string>
   <key>CFBundleShortVersionString</key>
-  <string>0.1.5</string>
+  <string>0.1.6</string>
   <key>CFBundleVersion</key>
-  <string>0.1.5</string>
+  <string>0.1.6</string>
   <key>LSEnvironment</key>
   <dict>
     <key>SCRCPY_ICON_PATH</key>
@@ -119,9 +119,9 @@ cat > "$APP_DIR/Contents/Info.plist" <<'PLIST'
   <key>CFBundlePackageType</key>
   <string>APPL</string>
   <key>CFBundleShortVersionString</key>
-  <string>0.1.5</string>
+  <string>0.1.6</string>
   <key>CFBundleVersion</key>
-  <string>0.1.5</string>
+  <string>0.1.6</string>
   <key>LSMinimumSystemVersion</key>
   <string>13.0</string>
   <key>LSUIElement</key>

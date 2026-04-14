@@ -17,10 +17,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var outputData = Data()
     private var splashWindowController: SplashWindowController?
     private var navigationWindowController: NavigationWindowController?
+    private var statusItem: NSStatusItem?
+    private var alwaysOnTopMenuItem: NSMenuItem?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
         configureMenu()
+        configureStatusItem()
         showSplash()
         checkForUpdates(silent: true)
         runMirror()
@@ -50,30 +53,97 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.terminate(nil)
     }
 
+    @objc private func toggleAlwaysOnTop(_ sender: NSMenuItem) {
+        let url = alwaysOnTopFlagURL()
+        let manager = FileManager.default
+        let currentlyOn = manager.fileExists(atPath: url.path)
+
+        if currentlyOn {
+            try? manager.removeItem(at: url)
+            sender.state = .off
+        } else {
+            try? manager.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try? Data().write(to: url)
+            sender.state = .on
+        }
+
+        showAlert("Keep on Top is \(currentlyOn ? "off" : "on").\n\nThe change takes effect the next time you open Mirror.")
+    }
+
+    private func alwaysOnTopFlagURL() -> URL {
+        let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
+            ?? URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("Library/Application Support")
+        return support.appendingPathComponent("Mirror/always-on-top")
+    }
+
     private func configureMenu() {
-        let mainMenu = NSMenu()
-        let appMenuItem = NSMenuItem()
-        let appMenu = NSMenu()
+        // Kept as an NSApp.mainMenu fallback for non-accessory launches; the
+        // status item in the menu bar is the real access point.
+        NSApp.mainMenu = buildMenu()
+    }
 
-        appMenu.addItem(
-            NSMenuItem(
-                title: "Check for Updates...",
-                action: #selector(checkForUpdatesFromMenu),
-                keyEquivalent: ""
-            )
-        )
-        appMenu.addItem(NSMenuItem.separator())
-        appMenu.addItem(
-            NSMenuItem(
-                title: "Quit Mirror",
-                action: #selector(quit),
-                keyEquivalent: "q"
-            )
-        )
+    private func configureStatusItem() {
+        let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
 
-        appMenuItem.submenu = appMenu
-        mainMenu.addItem(appMenuItem)
-        NSApp.mainMenu = mainMenu
+        if let button = item.button {
+            if let image = statusItemImage() {
+                button.image = image
+                button.image?.isTemplate = true
+            } else {
+                button.title = "Mirror"
+            }
+            button.toolTip = "Mirror"
+        }
+
+        item.menu = buildMenu()
+        statusItem = item
+    }
+
+    private func statusItemImage() -> NSImage? {
+        let symbolNames = ["iphone.gen3", "iphone", "rectangle.on.rectangle"]
+        for name in symbolNames {
+            if let symbol = NSImage(systemSymbolName: name, accessibilityDescription: "Mirror") {
+                let config = NSImage.SymbolConfiguration(pointSize: 14, weight: .regular)
+                return symbol.withSymbolConfiguration(config)
+            }
+        }
+        return nil
+    }
+
+    private func buildMenu() -> NSMenu {
+        let menu = NSMenu()
+
+        let alwaysOnTopItem = NSMenuItem(
+            title: "Keep on Top",
+            action: #selector(toggleAlwaysOnTop(_:)),
+            keyEquivalent: ""
+        )
+        alwaysOnTopItem.state = FileManager.default.fileExists(atPath: alwaysOnTopFlagURL().path) ? .on : .off
+        alwaysOnTopItem.target = self
+        menu.addItem(alwaysOnTopItem)
+        alwaysOnTopMenuItem = alwaysOnTopItem
+
+        menu.addItem(NSMenuItem.separator())
+
+        let updates = NSMenuItem(
+            title: "Check for Updates...",
+            action: #selector(checkForUpdatesFromMenu),
+            keyEquivalent: ""
+        )
+        updates.target = self
+        menu.addItem(updates)
+
+        menu.addItem(NSMenuItem.separator())
+
+        let quitItem = NSMenuItem(
+            title: "Quit Mirror",
+            action: #selector(quit),
+            keyEquivalent: "q"
+        )
+        quitItem.target = self
+        menu.addItem(quitItem)
+
+        return menu
     }
 
     private func runMirror() {

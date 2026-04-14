@@ -71,7 +71,55 @@ remember_device() {
   print -r -- "$serial" > "$LAST_DEVICE_FILE"
 }
 
+offer_adb_install() {
+  local response
+  response="$(/usr/bin/osascript <<'OSA' 2>/dev/null
+try
+    display dialog "Mirror needs the Android platform tools to talk to your phone." & return & return & "Install them now with Homebrew?" buttons {"Cancel", "Install"} default button "Install" with title "Mirror"
+    return button returned of result
+on error
+    return "Cancel"
+end try
+OSA
+)"
+  if [[ "$response" != "Install" ]]; then
+    return 1
+  fi
+
+  local brew_path=""
+  if [[ -x /opt/homebrew/bin/brew ]]; then
+    brew_path=/opt/homebrew/bin/brew
+  elif [[ -x /usr/local/bin/brew ]]; then
+    brew_path=/usr/local/bin/brew
+  fi
+
+  if [[ -z "$brew_path" ]]; then
+    /usr/bin/osascript <<'OSA' >/dev/null 2>&1
+try
+    set response to button returned of (display dialog "Homebrew is required to install the Android platform tools." & return & return & "Install Homebrew from brew.sh first, then open Mirror again." buttons {"Open brew.sh", "OK"} default button "Open brew.sh" with title "Mirror")
+    if response is "Open brew.sh" then
+        do shell script "open https://brew.sh"
+    end if
+end try
+OSA
+    return 1
+  fi
+
+  log "opening Terminal to run: $brew_path install android-platform-tools"
+  /usr/bin/osascript <<OSA >/dev/null 2>&1
+tell application "Terminal"
+    activate
+    do script "$brew_path install android-platform-tools"
+end tell
+OSA
+  return 0
+}
+
 if [[ ! -x "$ADB" ]]; then
+  log "adb missing at $ADB"
+  if offer_adb_install; then
+    fail "Mirror is installing the Android platform tools in Terminal.\n\nWhen Terminal finishes, open Mirror again."
+  fi
   fail "Mirror needs the Android platform tools.\n\nInstall them with:\n  brew install android-platform-tools\n\nThen open Mirror again."
 fi
 
@@ -106,6 +154,28 @@ if [[ -f "$LAST_DEVICE_FILE" ]]; then
     if [[ "$(device_state "$last_device")" == "device" ]]; then
       target="$last_device"
       log "using last device: $target"
+    fi
+  fi
+fi
+
+if [[ -z "$target" ]]; then
+  connected=(${(f)"$("$ADB" devices | /usr/bin/awk 'NR > 1 && $2 == "device" { print $1 }')"})
+  if (( ${#connected[@]} > 1 )); then
+    log "multiple devices visible: ${connected[*]}"
+    chosen="$(/usr/bin/osascript - "${connected[@]}" <<'OSA' 2>/dev/null
+on run argv
+    set chosenItems to choose from list argv with prompt "Mirror sees more than one phone. Which one should I open?"
+    if chosenItems is false then return ""
+    return item 1 of chosenItems as string
+end run
+OSA
+)"
+    if [[ -n "$chosen" ]]; then
+      target="$chosen"
+      log "picker selected: $target"
+    else
+      log "picker cancelled"
+      fail "Mirror needs a phone to mirror.\n\nOpen Mirror again and pick one when prompted."
     fi
   fi
 fi
@@ -199,6 +269,11 @@ launch_helper() {
 
   if [[ -n "$saved_x" ]]; then
     args+=(--window-x "$saved_x" --window-y "$saved_y" --window-width "$saved_w" --window-height "$saved_h")
+  fi
+
+  if [[ -f "$STATE_DIR/always-on-top" ]]; then
+    args+=(--always-on-top)
+    log "always-on-top enabled"
   fi
 
   log "launching helper for $target"
