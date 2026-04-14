@@ -2,14 +2,24 @@
   <img src="assets/mirror-icon.png" alt="Mirror" width="160">
 </p>
 
-# Mirror
+<h1 align="center">Mirror</h1>
 
-Mirror opens your Android phone on your Mac, so you can view and control it from your desktop.
+<p align="center">I built this for myself. When my phone is on a tripod, I wanted to see the framing on my Mac without picking it up.</p>
 
-It is made for a quick, simple flow: open the app, and your phone appears in its own Mirror window.
+<p align="center">It's a spinoff of <a href="https://github.com/Genymobile/scrcpy">scrcpy</a> — same engine, wrapped in a one-click Mac app so I never think about adb, ports, or flags. Open it, the phone appears, and Back / Home / Recents sit in a small bar under the window for gesture-nav phones. It remembers the Wi-Fi address, so after the first time I don't plug in again.</p>
 
-## Download for Mac
+<p align="center">Streams at native resolution with a high bitrate, so framing and fine detail come through clean.</p>
 
-[Download Mirror.dmg](https://github.com/heisenbergg-labs/Mirror/releases/latest/download/Mirror.dmg)
+<h2 align="center">Download</h2>
 
-After downloading, open the DMG and drag **Mirror** into your Applications folder.
+<p align="center"><a href="https://github.com/heisenbergg-labs/Mirror/releases/latest/download/Mirror.dmg">Mirror.dmg</a></p>
+
+<p align="center">Open the DMG, drag <b>Mirror</b> into Applications.</p>
+
+<h2 align="center">First run</h2>
+
+<p align="center">Plug the phone in once over USB, allow debugging when prompted, open Mirror. It switches to Wi-Fi and remembers the phone — after that, the cable stays in the drawer.</p>
+
+<h2 align="center">Credit</h2>
+
+<p align="center">All the real work is <a href="https://github.com/Genymobile/scrcpy">scrcpy</a> by Genymobile. Mirror is a thin Mac shell around it.</p>
