@@ -64,6 +64,11 @@ if [[ -f "$LAST_DEVICE_FILE" ]]; then
   last_device="$(/bin/cat "$LAST_DEVICE_FILE" 2>/dev/null)"
   if [[ -n "$last_device" && "$last_device" == *:* ]]; then
     "$ADB" connect "$last_device" >/dev/null 2>&1
+    if [[ "$(device_state "$last_device")" != "device" ]]; then
+      "$ADB" kill-server >/dev/null 2>&1
+      "$ADB" start-server >/dev/null 2>&1
+      "$ADB" connect "$last_device" >/dev/null 2>&1
+    fi
     if [[ "$(device_state "$last_device")" == "device" ]]; then
       target="$last_device"
     fi
