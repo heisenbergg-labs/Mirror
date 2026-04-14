@@ -16,6 +16,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var task: Process?
     private var outputData = Data()
     private var splashWindowController: SplashWindowController?
+    private var navigationWindowController: NavigationWindowController?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
@@ -26,10 +27,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
-        true
+        false
     }
 
     func applicationWillTerminate(_ notification: Notification) {
+        let pkill = Process()
+        pkill.executableURL = URL(fileURLWithPath: "/usr/bin/pkill")
+        pkill.arguments = ["-f", "MirrorScreen.app/Contents/MacOS/MirrorScreen"]
+        try? pkill.run()
+        pkill.waitUntilExit()
+
         if let task, task.isRunning {
             task.terminate()
         }
@@ -96,6 +103,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             DispatchQueue.main.async {
                 pipe.fileHandleForReading.readabilityHandler = nil
                 self?.hideSplash()
+                self?.hideNavigationPanel()
                 guard task.terminationStatus != 0 else {
                     NSApp.terminate(nil)
                     return
@@ -110,11 +118,47 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         do {
             try task.run()
             scheduleSplashDismissal()
+            scheduleNavigationPanel()
         } catch {
             hideSplash()
             showAlert("Mirror could not start.\n\n\(error.localizedDescription)")
             NSApp.terminate(nil)
         }
+    }
+
+    private func scheduleNavigationPanel() {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.4) { [weak self] in
+            self?.showNavigationPanel()
+        }
+    }
+
+    private func showNavigationPanel() {
+        guard navigationWindowController == nil, let device = readCurrentDevice() else {
+            return
+        }
+
+        let controller = NavigationWindowController(device: device)
+        navigationWindowController = controller
+        controller.showWindow(nil)
+    }
+
+    private func hideNavigationPanel() {
+        navigationWindowController?.close()
+        navigationWindowController = nil
+    }
+
+    private func readCurrentDevice() -> String? {
+        let supportURL = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
+        guard let url = supportURL?.appendingPathComponent("Mirror/current-device") else {
+            return nil
+        }
+
+        guard let raw = try? String(contentsOf: url, encoding: .utf8) else {
+            return nil
+        }
+
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
     }
 
     private func messageFromOutput() -> String {
@@ -394,6 +438,163 @@ private final class SplashWindowController: NSWindowController {
         }
 
         return NSApp.applicationIconImage
+    }
+}
+
+private final class NavigationWindowController: NSWindowController {
+    private let device: String
+    private let adbPath = "/opt/homebrew/bin/adb"
+    private var trackingTimer: Timer?
+
+    init(device: String) {
+        self.device = device
+
+        let rect = NSRect(x: 0, y: 0, width: 240, height: 64)
+        let panel = NSPanel(
+            contentRect: rect,
+            styleMask: [.nonactivatingPanel, .hudWindow, .utilityWindow, .titled, .closable],
+            backing: .buffered,
+            defer: false
+        )
+        panel.title = "Mirror Controls"
+        panel.isFloatingPanel = true
+        panel.level = .floating
+        panel.hidesOnDeactivate = false
+        panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
+        panel.becomesKeyOnlyIfNeeded = true
+
+        super.init(window: panel)
+        buildButtons()
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    override func showWindow(_ sender: Any?) {
+        super.showWindow(sender)
+        positionBelowMirrorWindow()
+        startTracking()
+    }
+
+    override func close() {
+        trackingTimer?.invalidate()
+        trackingTimer = nil
+        super.close()
+    }
+
+    private func buildButtons() {
+        guard let contentView = window?.contentView else {
+            return
+        }
+
+        let stack = NSStackView()
+        stack.translatesAutoresizingMaskIntoConstraints = false
+        stack.orientation = .horizontal
+        stack.distribution = .fillEqually
+        stack.spacing = 8
+        stack.edgeInsets = NSEdgeInsets(top: 6, left: 10, bottom: 6, right: 10)
+
+        stack.addArrangedSubview(makeButton(title: "◁", accessibility: "Back", action: #selector(pressBack)))
+        stack.addArrangedSubview(makeButton(title: "○", accessibility: "Home", action: #selector(pressHome)))
+        stack.addArrangedSubview(makeButton(title: "▢", accessibility: "Recents", action: #selector(pressRecents)))
+
+        contentView.addSubview(stack)
+        NSLayoutConstraint.activate([
+            stack.leadingAnchor.constraint(equalTo: contentView.leadingAnchor),
+            stack.trailingAnchor.constraint(equalTo: contentView.trailingAnchor),
+            stack.topAnchor.constraint(equalTo: contentView.topAnchor),
+            stack.bottomAnchor.constraint(equalTo: contentView.bottomAnchor)
+        ])
+    }
+
+    private func makeButton(title: String, accessibility: String, action: Selector) -> NSButton {
+        let button = NSButton(title: title, target: self, action: action)
+        button.font = .systemFont(ofSize: 18, weight: .medium)
+        button.bezelStyle = .rounded
+        button.setAccessibilityLabel(accessibility)
+        button.toolTip = accessibility
+        return button
+    }
+
+    @objc private func pressBack() { sendKeyevent("4") }
+    @objc private func pressHome() { sendKeyevent("3") }
+    @objc private func pressRecents() { sendKeyevent("187") }
+
+    private func sendKeyevent(_ code: String) {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: adbPath)
+        process.arguments = ["-s", device, "shell", "input", "keyevent", code]
+        process.standardOutput = Pipe()
+        process.standardError = Pipe()
+        try? process.run()
+    }
+
+    private func startTracking() {
+        trackingTimer?.invalidate()
+        trackingTimer = Timer.scheduledTimer(withTimeInterval: 0.35, repeats: true) { [weak self] _ in
+            self?.positionBelowMirrorWindow()
+        }
+    }
+
+    private func positionBelowMirrorWindow() {
+        guard let window else {
+            return
+        }
+
+        guard let mirrorFrame = findMirrorWindowFrame() else {
+            if window.frame.origin == .zero {
+                window.center()
+            }
+            return
+        }
+
+        let panelSize = window.frame.size
+        let x = mirrorFrame.midX - panelSize.width / 2
+        let y = mirrorFrame.minY - panelSize.height - 8
+        let newOrigin = NSPoint(x: x, y: y)
+
+        if window.frame.origin != newOrigin {
+            window.setFrameOrigin(newOrigin)
+        }
+    }
+
+    private func findMirrorWindowFrame() -> NSRect? {
+        let options: CGWindowListOption = [.optionOnScreenOnly, .excludeDesktopElements]
+        guard let list = CGWindowListCopyWindowInfo(options, kCGNullWindowID) as? [[String: Any]] else {
+            return nil
+        }
+
+        for entry in list {
+            let owner = entry[kCGWindowOwnerName as String] as? String ?? ""
+            let name = entry[kCGWindowName as String] as? String ?? ""
+            guard owner == "MirrorScreen" || name == "Mirror" else {
+                continue
+            }
+
+            guard let boundsDict = entry[kCGWindowBounds as String] as? [String: CGFloat],
+                  let cgRect = CGRect(dictionaryRepresentation: boundsDict as CFDictionary) else {
+                continue
+            }
+
+            if cgRect.width < 60 || cgRect.height < 60 {
+                continue
+            }
+
+            return flipToScreenCoordinates(cgRect)
+        }
+
+        return nil
+    }
+
+    private func flipToScreenCoordinates(_ rect: CGRect) -> NSRect {
+        guard let primary = NSScreen.screens.first else {
+            return rect
+        }
+
+        let primaryHeight = primary.frame.height
+        let flippedY = primaryHeight - rect.origin.y - rect.height
+        return NSRect(x: rect.origin.x, y: flippedY, width: rect.width, height: rect.height)
     }
 }
 

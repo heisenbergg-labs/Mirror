@@ -112,4 +112,22 @@ if [[ "$target" == *:* ]]; then
   remember_device "$target"
 fi
 
-/usr/bin/open -W -n "$HELPER_APP" --args --window-title Mirror -s "$target"
+CURRENT_DEVICE_FILE="$STATE_DIR/current-device"
+/bin/mkdir -p "$STATE_DIR"
+print -r -- "$target" > "$CURRENT_DEVICE_FILE"
+trap '/bin/rm -f "$CURRENT_DEVICE_FILE"' EXIT INT TERM
+
+/usr/bin/open -n "$HELPER_APP" --args --window-title Mirror -s "$target"
+
+helper_pid=""
+for _ in {1..20}; do
+  helper_pid="$(/usr/bin/pgrep -f "MirrorScreen.app/Contents/MacOS/MirrorScreen" | /usr/bin/head -1)"
+  [[ -n "$helper_pid" ]] && break
+  /bin/sleep 0.2
+done
+
+if [[ -n "$helper_pid" ]]; then
+  while /bin/kill -0 "$helper_pid" 2>/dev/null; do
+    /bin/sleep 0.5
+  done
+fi
