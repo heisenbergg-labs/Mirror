@@ -5,9 +5,9 @@ export PATH="/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
 
 ADB="/opt/homebrew/bin/adb"
 ENGINE_NAME="sc""rcpy"
-ENGINE_PATH="/opt/homebrew/bin/$ENGINE_NAME"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-MIRROR_ICON="$SCRIPT_DIR/Mirror.png"
+HELPER_APP="$SCRIPT_DIR/../Helpers/MirrorScreen.app"
+ENGINE_PATH="$HELPER_APP/Contents/MacOS/MirrorScreen"
 STATE_DIR="$HOME/Library/Application Support/Mirror"
 LAST_DEVICE_FILE="$STATE_DIR/last-device"
 
@@ -107,9 +107,4 @@ if [[ "$target" == *:* ]]; then
   remember_device "$target"
 fi
 
-if [[ -f "$MIRROR_ICON" ]]; then
-  export "SC""RCPY_ICON_PATH=$MIRROR_ICON"
-fi
-export SDL_APP_NAME="Mirror"
-
-"$ENGINE_PATH" --window-title Mirror -s "$target"
+/usr/bin/open -W -n "$HELPER_APP" --args --window-title Mirror -s "$target"
