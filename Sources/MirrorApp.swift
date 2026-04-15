@@ -355,13 +355,59 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         controller.showWindow(nil)
     }
 
+    private var splashDismissTimer: Timer?
+    private var splashSafetyTimer: Timer?
+
     private func scheduleSplashDismissal() {
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2.4) { [weak self] in
+        splashDismissTimer?.invalidate()
+        splashSafetyTimer?.invalidate()
+
+        splashDismissTimer = Timer.scheduledTimer(withTimeInterval: 0.25, repeats: true) { [weak self] timer in
+            guard let self else {
+                timer.invalidate()
+                return
+            }
+            if self.phoneWindowIsOnScreen() {
+                timer.invalidate()
+                self.splashDismissTimer = nil
+                self.splashSafetyTimer?.invalidate()
+                self.splashSafetyTimer = nil
+                self.hideSplash()
+            }
+        }
+
+        splashSafetyTimer = Timer.scheduledTimer(withTimeInterval: 2.5, repeats: false) { [weak self] _ in
+            self?.splashDismissTimer?.invalidate()
+            self?.splashDismissTimer = nil
+            self?.splashSafetyTimer = nil
             self?.hideSplash()
         }
     }
 
+    private func phoneWindowIsOnScreen() -> Bool {
+        let options: CGWindowListOption = [.optionOnScreenOnly, .excludeDesktopElements]
+        guard let list = CGWindowListCopyWindowInfo(options, kCGNullWindowID) as? [[String: Any]] else {
+            return false
+        }
+        for entry in list {
+            let owner = entry[kCGWindowOwnerName as String] as? String ?? ""
+            guard owner == "Mirror" || owner == "MirrorScreen" else { continue }
+            let layer = entry[kCGWindowLayer as String] as? Int ?? 0
+            guard layer == 0 else { continue }
+            if let bounds = entry[kCGWindowBounds as String] as? [String: CGFloat],
+               let rect = CGRect(dictionaryRepresentation: bounds as CFDictionary),
+               rect.width >= 300, rect.height >= 300 {
+                return true
+            }
+        }
+        return false
+    }
+
     private func hideSplash() {
+        splashDismissTimer?.invalidate()
+        splashDismissTimer = nil
+        splashSafetyTimer?.invalidate()
+        splashSafetyTimer = nil
         splashWindowController?.closeWithFade()
         splashWindowController = nil
     }
@@ -401,7 +447,6 @@ private final class SplashWindowController: NSWindowController {
             context.duration = 0.18
             window?.animator().alphaValue = 1
         }
-        startAnimations()
     }
 
     func closeWithFade() {
@@ -424,17 +469,11 @@ private final class SplashWindowController: NSWindowController {
         }
 
         contentView.wantsLayer = true
-        contentView.layer?.cornerRadius = 8
+        contentView.layer?.cornerRadius = 14
         contentView.layer?.masksToBounds = true
-        contentView.layer?.backgroundColor = NSColor.windowBackgroundColor.withAlphaComponent(0.94).cgColor
+        contentView.layer?.backgroundColor = NSColor.windowBackgroundColor.withAlphaComponent(0.96).cgColor
         contentView.layer?.borderColor = NSColor.separatorColor.withAlphaComponent(0.55).cgColor
         contentView.layer?.borderWidth = 1
-
-        let glowView = NSView()
-        glowView.translatesAutoresizingMaskIntoConstraints = false
-        glowView.wantsLayer = true
-        glowView.layer?.cornerRadius = 70
-        glowView.layer?.backgroundColor = NSColor.controlAccentColor.withAlphaComponent(0.18).cgColor
 
         iconView.translatesAutoresizingMaskIntoConstraints = false
         iconView.image = splashIcon()
@@ -443,62 +482,32 @@ private final class SplashWindowController: NSWindowController {
 
         titleLabel.translatesAutoresizingMaskIntoConstraints = false
         titleLabel.alignment = .center
-        titleLabel.font = .systemFont(ofSize: 27, weight: .semibold)
+        titleLabel.font = .systemFont(ofSize: 24, weight: .semibold)
         titleLabel.textColor = .labelColor
 
         statusLabel.translatesAutoresizingMaskIntoConstraints = false
         statusLabel.alignment = .center
-        statusLabel.font = .systemFont(ofSize: 13, weight: .medium)
+        statusLabel.font = .systemFont(ofSize: 12, weight: .regular)
         statusLabel.textColor = .secondaryLabelColor
 
-        contentView.addSubview(glowView)
         contentView.addSubview(iconView)
         contentView.addSubview(titleLabel)
         contentView.addSubview(statusLabel)
 
         NSLayoutConstraint.activate([
-            glowView.centerXAnchor.constraint(equalTo: contentView.centerXAnchor),
-            glowView.topAnchor.constraint(equalTo: contentView.topAnchor, constant: 44),
-            glowView.widthAnchor.constraint(equalToConstant: 140),
-            glowView.heightAnchor.constraint(equalToConstant: 140),
-
             iconView.centerXAnchor.constraint(equalTo: contentView.centerXAnchor),
-            iconView.topAnchor.constraint(equalTo: contentView.topAnchor, constant: 58),
-            iconView.widthAnchor.constraint(equalToConstant: 112),
-            iconView.heightAnchor.constraint(equalToConstant: 112),
+            iconView.topAnchor.constraint(equalTo: contentView.topAnchor, constant: 64),
+            iconView.widthAnchor.constraint(equalToConstant: 96),
+            iconView.heightAnchor.constraint(equalToConstant: 96),
 
             titleLabel.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 24),
             titleLabel.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -24),
-            titleLabel.topAnchor.constraint(equalTo: iconView.bottomAnchor, constant: 22),
+            titleLabel.topAnchor.constraint(equalTo: iconView.bottomAnchor, constant: 20),
 
             statusLabel.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 24),
             statusLabel.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -24),
-            statusLabel.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: 8)
+            statusLabel.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: 6)
         ])
-    }
-
-    private func startAnimations() {
-        guard let iconLayer = iconView.layer else {
-            return
-        }
-
-        let pulse = CABasicAnimation(keyPath: "transform.scale")
-        pulse.fromValue = 0.96
-        pulse.toValue = 1.06
-        pulse.duration = 0.85
-        pulse.autoreverses = true
-        pulse.repeatCount = .infinity
-        pulse.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
-
-        let float = CABasicAnimation(keyPath: "position.y")
-        float.byValue = 8
-        float.duration = 1.15
-        float.autoreverses = true
-        float.repeatCount = .infinity
-        float.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
-
-        iconLayer.add(pulse, forKey: "mirrorIconPulse")
-        iconLayer.add(float, forKey: "mirrorIconFloat")
     }
 
     private func splashIcon() -> NSImage {

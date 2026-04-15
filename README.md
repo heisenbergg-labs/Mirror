@@ -4,9 +4,11 @@
 
 <h1 align="center">Mirror</h1>
 
-<p align="justify">I built this for myself. When my phone is on a tripod, I wanted to see the framing on my Mac without picking it up.</p>
+<p align="justify">I built this for myself. When my Android phone is on a tripod, I wanted to see the framing on my Mac without picking it up.</p>
 
 <p align="justify">It's a spinoff of <a href="https://github.com/Genymobile/scrcpy">scrcpy</a> — same engine, wrapped in a one-click Mac app so I never think about adb, ports, or flags. Open it, the phone appears, and Back / Home / Recents sit in a small bar under the window for gesture-nav phones. It remembers the Wi-Fi address, so after the first time I don't plug in again.</p>
+
+<p align="center"><em>Android only — scrcpy doesn't speak to iPhones.</em></p>
 
 <p align="justify">Streams at native resolution with a high bitrate, so framing and fine detail come through clean.</p>
 
