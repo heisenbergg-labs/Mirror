@@ -401,6 +401,10 @@ launch_helper() {
       )
       if [[ -n "$preferred_encoder" && "$preferred_encoder" != "default" ]]; then
         args+=(--video-encoder "$preferred_encoder")
+        if [[ "$preferred_encoder" == "c2.qti.avc.encoder" ]]; then
+          args+=(--video-codec-options "vendor.qti-ext-enc-low-latency.enable:int=1")
+          log "qualcomm low-latency encoder mode enabled"
+        fi
       fi
       ;;
     *)
