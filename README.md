@@ -10,7 +10,7 @@
 
 <p align="center"><em>Android only — scrcpy doesn't speak to iPhones.</em></p>
 
-<p align="justify">Streams at native resolution with a high bitrate, so framing and fine detail come through clean.</p>
+<p align="justify">Streams at native resolution with a high bitrate, so framing and fine detail come through clean. Clipboard syncs both ways — copy on your Mac, paste on the phone, and vice versa.</p>
 
 <h3 align="center">Download</h3>
 
@@ -20,7 +20,7 @@
 
 <h3 align="center">First run</h3>
 
-<p align="justify">Plug the phone in once over USB, allow debugging when prompted, open Mirror. It switches to Wi-Fi and remembers the phone — after that, the cable stays in the drawer.</p>
+<p align="justify">Plug the phone in once over USB, allow debugging when prompted, open Mirror. It switches to Wi-Fi and remembers the phone — after that, the cable stays in the drawer. If your phone has Wireless Debugging enabled (Android 11+), Mirror can find it automatically over the network without USB at all.</p>
 
 <h3 align="center">Credit</h3>
 

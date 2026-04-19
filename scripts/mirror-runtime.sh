@@ -134,6 +134,16 @@ if ! "$ADB" start-server >>"$LOG_FILE" 2>&1; then
   fail "Mirror could not start the Android connection service.\n\nRestart your Mac and open Mirror again."
 fi
 
+# mDNS auto-discovery (Android 11+ Wireless Debugging)
+mdns_output="$("$ADB" mdns services 2>/dev/null | /usr/bin/awk '/_adb-tls-connect/ { print $3 }')"
+if [[ -n "$mdns_output" ]]; then
+  while IFS= read -r mdns_addr; do
+    [[ -z "$mdns_addr" ]] && continue
+    log "mDNS discovered: $mdns_addr"
+    "$ADB" connect "$mdns_addr" >>"$LOG_FILE" 2>&1 || true
+  done <<< "$mdns_output"
+fi
+
 target=""
 connect_detail=""
 last_device=""
@@ -212,25 +222,102 @@ if [[ -z "$target" ]]; then
   fi
 fi
 
+guided_setup() {
+  log "guided setup: starting"
+
+  local response
+  response="$(/usr/bin/osascript <<'OSA' 2>/dev/null
+try
+    display dialog "Mirror can't find your phone yet." & return & return & "1. Plug your Android phone in with USB" & return & "2. Unlock it" & return & "3. Tap Allow when the debugging prompt appears" & return & return & "Then click Continue." buttons {"Cancel", "Continue"} default button "Continue" with title "Mirror Setup" with icon caution
+    return button returned of result
+on error
+    return "Cancel"
+end try
+OSA
+)"
+  if [[ "$response" != "Continue" ]]; then
+    log "guided setup: user cancelled"
+    return 1
+  fi
+
+  log "guided setup: polling for USB device"
+  local usb="" attempt
+  for attempt in {1..30}; do
+    if has_waiting_permission; then
+      /usr/bin/osascript <<'OSA' >/dev/null 2>&1
+try
+    display dialog "Your phone is asking for permission." & return & return & "Unlock your phone and tap Allow on the USB debugging prompt, then click OK." buttons {"OK"} default button "OK" with title "Mirror Setup"
+end try
+OSA
+    fi
+
+    usb="$(first_usb_device)"
+    [[ -n "$usb" ]] && break
+    /bin/sleep 2
+  done
+
+  if [[ -z "$usb" ]]; then
+    log "guided setup: no USB device found after polling"
+    return 1
+  fi
+
+  log "guided setup: found USB device $usb"
+
+  local phone_ip
+  phone_ip="$(phone_ip_for_usb "$usb")"
+  if [[ -n "$phone_ip" ]]; then
+    log "guided setup: switching $usb to wifi via $phone_ip"
+    "$ADB" -s "$usb" tcpip 5555 >>"$LOG_FILE" 2>&1 || true
+    /bin/sleep 1
+    local network_device="$phone_ip:5555"
+    "$ADB" connect "$network_device" >>"$LOG_FILE" 2>&1 || true
+    if [[ "$(device_state "$network_device")" == "device" ]]; then
+      target="$network_device"
+      log "guided setup: switched to wifi $target"
+    else
+      target="$usb"
+      log "guided setup: wifi switch failed, using usb $target"
+    fi
+  else
+    target="$usb"
+    log "guided setup: no wlan ip, using usb $target"
+  fi
+
+  /usr/bin/osascript <<OSA >/dev/null 2>&1
+try
+    display dialog "Connected to your phone." & return & return & "You can unplug the USB cable now — Mirror will remember it over Wi-Fi." buttons {"OK"} default button "OK" with title "Mirror Setup" giving up after 5
+end try
+OSA
+  return 0
+}
+
 if [[ -z "$target" ]]; then
   log "no target selected. adb devices:"
   "$ADB" devices >> "$LOG_FILE" 2>&1
 
   if has_waiting_permission; then
-    fail "Your phone is waiting for permission.\n\nUnlock it, tap Allow on the debugging prompt, then open Mirror again."
+    /usr/bin/osascript <<'OSA' >/dev/null 2>&1
+try
+    display dialog "Your phone is asking for permission." & return & return & "Unlock it and tap Allow on the debugging prompt, then open Mirror again." buttons {"OK"} default button "OK" with title "Mirror"
+end try
+OSA
+    fail "Waiting for phone permission."
   fi
 
-  detail=""
-  if [[ -n "$last_device" ]]; then
-    detail="Last known phone: $last_device"
-    if [[ -n "$connect_detail" ]]; then
-      clean="$(/usr/bin/printf '%s' "$connect_detail" | /usr/bin/sed -n 's/^failed to connect to .*: //p' | /usr/bin/head -1)"
-      [[ -n "$clean" ]] && detail="$detail\nReason: $clean"
+  if guided_setup; then
+    log "guided setup succeeded, target: $target"
+  else
+    detail=""
+    if [[ -n "$last_device" ]]; then
+      detail="Last known phone: $last_device"
+      if [[ -n "$connect_detail" ]]; then
+        clean="$(/usr/bin/printf '%s' "$connect_detail" | /usr/bin/sed -n 's/^failed to connect to .*: //p' | /usr/bin/head -1)"
+        [[ -n "$clean" ]] && detail="$detail\nReason: $clean"
+      fi
+      detail="$detail\n\n"
     fi
-    detail="$detail\n\n"
+    fail "Mirror could not find your phone.\n\n${detail}Make sure your phone is unlocked and on the same Wi-Fi as your Mac.\n\nLog: ~/Library/Logs/Mirror/mirror.log"
   fi
-
-  fail "Mirror could not find your phone.\n\n${detail}Make sure your phone is unlocked and on the same Wi-Fi as your Mac.\n\nFirst-time setup: plug the phone in with USB once, allow debugging, and open Mirror again.\n\nLog: ~/Library/Logs/Mirror/mirror.log"
 fi
 
 if [[ "$target" == *:* ]]; then
