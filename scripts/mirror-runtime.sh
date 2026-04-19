@@ -343,57 +343,6 @@ if [[ -f "$WINDOW_FRAME_FILE" ]]; then
   fi
 fi
 
-SYNC_DIR="$HOME/Movies/Mirror"
-SYNCED_LOG="$STATE_DIR/synced-files"
-
-list_remote_videos() {
-  "$ADB" -s "$target" shell 'ls -1 /sdcard/DCIM/Camera/*.mp4 /sdcard/DCIM/Camera/*.MP4 /sdcard/DCIM/Camera/*.mov /sdcard/DCIM/Camera/*.MOV 2>/dev/null' 2>/dev/null | /usr/bin/tr -d '\r'
-}
-
-seed_synced_log_if_empty() {
-  /bin/mkdir -p "$SYNC_DIR"
-  if [[ -s "$SYNCED_LOG" ]]; then
-    return
-  fi
-  log "video sync: seeding baseline from existing camera files (won't pull these)"
-  local remote
-  list_remote_videos | while IFS= read -r remote; do
-    [[ -z "$remote" ]] && continue
-    print -r -- "${remote##*/}" >> "$SYNCED_LOG"
-  done
-}
-
-sync_new_videos() {
-  local remote_files
-  remote_files="$(list_remote_videos)"
-  [[ -z "$remote_files" ]] && return
-
-  while IFS= read -r remote; do
-    [[ -z "$remote" ]] && continue
-    local base="${remote##*/}"
-
-    /usr/bin/grep -qxF "$base" "$SYNCED_LOG" && continue
-
-    # Check file size stability — skip if still being recorded
-    local s1 s2
-    s1="$("$ADB" -s "$target" shell "stat -c%s '$remote'" 2>/dev/null | /usr/bin/tr -d '\r')"
-    /bin/sleep 2
-    s2="$("$ADB" -s "$target" shell "stat -c%s '$remote'" 2>/dev/null | /usr/bin/tr -d '\r')"
-    if [[ "$s1" != "$s2" || -z "$s1" ]]; then
-      log "video sync: $base still recording, skipping"
-      continue
-    fi
-
-    log "video sync: pulling $base ($s1 bytes)"
-    if "$ADB" -s "$target" pull "$remote" "$SYNC_DIR/$base" >>"$LOG_FILE" 2>&1; then
-      print -r -- "$base" >> "$SYNCED_LOG"
-      log "video sync: saved $SYNC_DIR/$base"
-    else
-      log "video sync: failed to pull $base"
-    fi
-  done <<< "$remote_files"
-}
-
 launch_helper() {
   local -a args
   args=(
@@ -413,8 +362,6 @@ launch_helper() {
     args+=(--always-on-top)
     log "always-on-top enabled"
   fi
-
-  seed_synced_log_if_empty
 
   log "launching helper for $target"
   /usr/bin/open -n "$HELPER_APP" --args "${args[@]}"
@@ -437,12 +384,6 @@ launch_helper() {
     /bin/sleep 0.5
   done
   log "helper pid $pid exited"
-
-  # Pull any videos recorded during this session now that scrcpy isn't
-  # competing for bandwidth on the wifi pipe.
-  log "session ended, sweeping for new videos"
-  sync_new_videos
-
   return 0
 }
 
