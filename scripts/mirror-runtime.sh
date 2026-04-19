@@ -349,7 +349,7 @@ if [[ -f "$QUALITY_MODE_FILE" ]]; then
   read -r quality_mode < "$QUALITY_MODE_FILE" 2>/dev/null || quality_mode="smooth"
 fi
 case "$quality_mode" in
-  sharp|smooth) ;;
+  sharp|smooth|buttery) ;;
   *) quality_mode="smooth" ;;
 esac
 log "quality mode: $quality_mode"
@@ -362,21 +362,34 @@ launch_helper() {
     --no-audio
   )
 
-  if [[ "$quality_mode" == "sharp" ]]; then
-    args+=(
-      --video-bit-rate 20M
-      --video-codec h265
-      --video-buffer 0
-    )
-  else
-    args+=(
-      --max-size 1920
-      --max-fps 30
-      --video-bit-rate 8M
-      --video-codec h264
-      --video-buffer 30
-    )
-  fi
+  case "$quality_mode" in
+    sharp)
+      args+=(
+        --video-bit-rate 20M
+        --video-codec h265
+        --video-buffer 0
+      )
+      ;;
+    buttery)
+      args+=(
+        --max-size 1920
+        --max-fps 24
+        --video-bit-rate 4M
+        --video-codec h264
+        --video-buffer 0
+        --lock-video-orientation initial
+      )
+      ;;
+    *)
+      args+=(
+        --max-size 1920
+        --max-fps 30
+        --video-bit-rate 8M
+        --video-codec h264
+        --video-buffer 30
+      )
+      ;;
+  esac
 
   if [[ -n "$saved_x" ]]; then
     args+=(--window-x "$saved_x" --window-y "$saved_y" --window-width "$saved_w" --window-height "$saved_h")

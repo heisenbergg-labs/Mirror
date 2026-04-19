@@ -117,7 +117,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let qualityMenu = NSMenu()
         let currentMode = currentQualityMode()
 
-        let smoothItem = NSMenuItem(title: "Smooth (low latency)", action: #selector(setQualitySmooth), keyEquivalent: "")
+        let butteryItem = NSMenuItem(title: "Buttery (lightest load)", action: #selector(setQualityButtery), keyEquivalent: "")
+        butteryItem.target = self
+        butteryItem.state = currentMode == "buttery" ? .on : .off
+        qualityMenu.addItem(butteryItem)
+
+        let smoothItem = NSMenuItem(title: "Smooth (balanced)", action: #selector(setQualitySmooth), keyEquivalent: "")
         smoothItem.target = self
         smoothItem.state = currentMode == "smooth" ? .on : .off
         qualityMenu.addItem(smoothItem)
@@ -165,6 +170,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         return menu
     }
 
+    @objc private func setQualityButtery() { setQualityMode("buttery") }
     @objc private func setQualitySmooth() { setQualityMode("smooth") }
     @objc private func setQualitySharp() { setQualityMode("sharp") }
 
@@ -173,7 +179,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         try? FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
         try? mode.write(to: url, atomically: true, encoding: .utf8)
         statusItem?.menu = buildMenu()
-        showAlert("Quality is set to \(mode == "sharp" ? "Sharp" : "Smooth").\n\nThe change takes effect the next time you open Mirror.")
+        let label: String
+        switch mode {
+        case "sharp": label = "Sharp"
+        case "buttery": label = "Buttery"
+        default: label = "Smooth"
+        }
+        showAlert("Quality is set to \(label).\n\nThe change takes effect the next time you open Mirror.")
     }
 
     private func currentQualityMode() -> String {
@@ -181,7 +193,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return "smooth"
         }
         let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed == "sharp" ? "sharp" : "smooth"
+        switch trimmed {
+        case "sharp": return "sharp"
+        case "buttery": return "buttery"
+        default: return "smooth"
+        }
     }
 
     private func qualityModeURL() -> URL {
