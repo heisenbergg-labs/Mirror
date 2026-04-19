@@ -81,9 +81,9 @@ cat > "$HELPER_APP/Contents/Info.plist" <<'PLIST'
   <key>CFBundlePackageType</key>
   <string>APPL</string>
   <key>CFBundleShortVersionString</key>
-  <string>0.2.6</string>
+  <string>0.2.7</string>
   <key>CFBundleVersion</key>
-  <string>0.2.6</string>
+  <string>0.2.7</string>
   <key>LSEnvironment</key>
   <dict>
     <key>SCRCPY_ICON_PATH</key>
@@ -119,9 +119,9 @@ cat > "$APP_DIR/Contents/Info.plist" <<'PLIST'
   <key>CFBundlePackageType</key>
   <string>APPL</string>
   <key>CFBundleShortVersionString</key>
-  <string>0.2.6</string>
+  <string>0.2.7</string>
   <key>CFBundleVersion</key>
-  <string>0.2.6</string>
+  <string>0.2.7</string>
   <key>LSMinimumSystemVersion</key>
   <string>13.0</string>
   <key>LSUIElement</key>
@@ -138,5 +138,9 @@ touch "$DEST_APP"
   -f "$DEST_APP" >/dev/null 2>&1 || true
 qlmanage -r cache >/dev/null 2>&1 || true
 killall Dock >/dev/null 2>&1 || true
+
+# Clean the build staging dir so it doesn't show up as a duplicate Mirror.app
+# in Spotlight or Launchpad.
+rm -rf "$BUILD_DIR"
 
 echo "Installed $DEST_APP"

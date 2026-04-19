@@ -377,7 +377,6 @@ launch_helper() {
         --video-bit-rate 4M
         --video-codec h264
         --video-buffer 0
-        --lock-video-orientation initial
       )
       ;;
     *)
