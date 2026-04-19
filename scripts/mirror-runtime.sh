@@ -343,6 +343,43 @@ if [[ -f "$WINDOW_FRAME_FILE" ]]; then
   fi
 fi
 
+SYNC_DIR="$HOME/Movies/Mirror"
+SYNCED_LOG="$STATE_DIR/synced-files"
+
+sync_new_videos() {
+  /bin/mkdir -p "$SYNC_DIR"
+  [[ -f "$SYNCED_LOG" ]] || /usr/bin/touch "$SYNCED_LOG"
+
+  local remote_files
+  remote_files="$("$ADB" -s "$target" shell 'ls -1 /sdcard/DCIM/Camera/*.mp4 /sdcard/DCIM/Camera/*.MP4 /sdcard/DCIM/Camera/*.mov /sdcard/DCIM/Camera/*.MOV 2>/dev/null' 2>/dev/null | /usr/bin/tr -d '\r')"
+  [[ -z "$remote_files" ]] && return
+
+  while IFS= read -r remote; do
+    [[ -z "$remote" ]] && continue
+    local base="${remote##*/}"
+
+    /usr/bin/grep -qxF "$base" "$SYNCED_LOG" && continue
+
+    # Check file size stability — skip if still being recorded
+    local s1 s2
+    s1="$("$ADB" -s "$target" shell "stat -c%s '$remote'" 2>/dev/null | /usr/bin/tr -d '\r')"
+    /bin/sleep 2
+    s2="$("$ADB" -s "$target" shell "stat -c%s '$remote'" 2>/dev/null | /usr/bin/tr -d '\r')"
+    if [[ "$s1" != "$s2" || -z "$s1" ]]; then
+      log "video sync: $base still recording, skipping"
+      continue
+    fi
+
+    log "video sync: pulling $base ($s1 bytes)"
+    if "$ADB" -s "$target" pull "$remote" "$SYNC_DIR/$base" >>"$LOG_FILE" 2>&1; then
+      print -r -- "$base" >> "$SYNCED_LOG"
+      log "video sync: saved $SYNC_DIR/$base"
+    else
+      log "video sync: failed to pull $base"
+    fi
+  done <<< "$remote_files"
+}
+
 launch_helper() {
   local -a args
   args=(
@@ -380,8 +417,14 @@ launch_helper() {
   fi
 
   log "helper pid: $pid"
+  local sync_ticks=0
   while /bin/kill -0 "$pid" 2>/dev/null; do
     /bin/sleep 0.5
+    sync_ticks=$((sync_ticks + 1))
+    if (( sync_ticks >= 20 )); then
+      sync_ticks=0
+      sync_new_videos
+    fi
   done
   log "helper pid $pid exited"
   return 0
