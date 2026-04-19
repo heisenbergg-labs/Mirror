@@ -433,16 +433,16 @@ launch_helper() {
   fi
 
   log "helper pid: $pid"
-  local sync_ticks=0
   while /bin/kill -0 "$pid" 2>/dev/null; do
     /bin/sleep 0.5
-    sync_ticks=$((sync_ticks + 1))
-    if (( sync_ticks >= 20 )); then
-      sync_ticks=0
-      sync_new_videos
-    fi
   done
   log "helper pid $pid exited"
+
+  # Pull any videos recorded during this session now that scrcpy isn't
+  # competing for bandwidth on the wifi pipe.
+  log "session ended, sweeping for new videos"
+  sync_new_videos
+
   return 0
 }
 

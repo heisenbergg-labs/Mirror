@@ -10,7 +10,7 @@
 
 <p align="center"><em>Android only — scrcpy doesn't speak to iPhones.</em></p>
 
-<p align="justify">Streams at native resolution with a high bitrate, so framing and fine detail come through clean. Clipboard syncs both ways — copy on your Mac, paste on the phone, and vice versa. Videos recorded on the phone are automatically pulled to <code>~/Movies/Mirror/</code> while connected, so your editing app's watch folder picks them up without any manual transfer.</p>
+<p align="justify">Streams at native resolution with a high bitrate, so framing and fine detail come through clean. Clipboard syncs both ways — copy on your Mac, paste on the phone, and vice versa. Videos recorded on the phone are automatically pulled to <code>~/Movies/Mirror/</code> when you close Mirror, so your editing app's watch folder picks them up without any manual transfer (pulling during the session would steal bandwidth from the live stream).</p>
 
 <h3 align="center">First run</h3>
 
