@@ -354,6 +354,27 @@ case "$quality_mode" in
 esac
 log "quality mode: $quality_mode"
 
+# Detect the fastest hardware H.264 encoder once per device, cache the result.
+encoder_id="$(/usr/bin/printf '%s' "$target" | /usr/bin/tr -c 'A-Za-z0-9' '_')"
+ENCODER_CACHE="$STATE_DIR/encoder-$encoder_id"
+preferred_encoder=""
+if [[ -f "$ENCODER_CACHE" ]]; then
+  read -r preferred_encoder < "$ENCODER_CACHE" 2>/dev/null
+  log "cached encoder for $target: $preferred_encoder"
+fi
+
+if [[ -z "$preferred_encoder" && "$quality_mode" == "buttery" ]]; then
+  log "probing hw encoders for $target"
+  encoder_listing="$("$ENGINE_PATH" -s "$target" --list-encoders 2>&1)"
+  if /usr/bin/printf '%s' "$encoder_listing" | /usr/bin/grep -q "c2.qti.avc.encoder"; then
+    preferred_encoder="c2.qti.avc.encoder"
+  else
+    preferred_encoder="default"
+  fi
+  print -r -- "$preferred_encoder" > "$ENCODER_CACHE"
+  log "selected encoder for $target: $preferred_encoder"
+fi
+
 launch_helper() {
   local -a args
   args=(
@@ -373,11 +394,14 @@ launch_helper() {
     buttery)
       args+=(
         --max-size 1920
-        --max-fps 24
-        --video-bit-rate 4M
+        --max-fps 20
+        --video-bit-rate 2M
         --video-codec h264
         --video-buffer 0
       )
+      if [[ -n "$preferred_encoder" && "$preferred_encoder" != "default" ]]; then
+        args+=(--video-encoder "$preferred_encoder")
+      fi
       ;;
     *)
       args+=(
