@@ -113,6 +113,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func buildMenu() -> NSMenu {
         let menu = NSMenu()
 
+        let qualityItem = NSMenuItem(title: "Quality", action: nil, keyEquivalent: "")
+        let qualityMenu = NSMenu()
+        let currentMode = currentQualityMode()
+
+        let smoothItem = NSMenuItem(title: "Smooth (low latency)", action: #selector(setQualitySmooth), keyEquivalent: "")
+        smoothItem.target = self
+        smoothItem.state = currentMode == "smooth" ? .on : .off
+        qualityMenu.addItem(smoothItem)
+
+        let sharpItem = NSMenuItem(title: "Sharp (high quality)", action: #selector(setQualitySharp), keyEquivalent: "")
+        sharpItem.target = self
+        sharpItem.state = currentMode == "sharp" ? .on : .off
+        qualityMenu.addItem(sharpItem)
+
+        qualityItem.submenu = qualityMenu
+        menu.addItem(qualityItem)
+
+        menu.addItem(NSMenuItem.separator())
+
         let alwaysOnTopItem = NSMenuItem(
             title: "Keep on Top",
             action: #selector(toggleAlwaysOnTop(_:)),
@@ -144,6 +163,31 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         menu.addItem(quitItem)
 
         return menu
+    }
+
+    @objc private func setQualitySmooth() { setQualityMode("smooth") }
+    @objc private func setQualitySharp() { setQualityMode("sharp") }
+
+    private func setQualityMode(_ mode: String) {
+        let url = qualityModeURL()
+        try? FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try? mode.write(to: url, atomically: true, encoding: .utf8)
+        statusItem?.menu = buildMenu()
+        showAlert("Quality is set to \(mode == "sharp" ? "Sharp" : "Smooth").\n\nThe change takes effect the next time you open Mirror.")
+    }
+
+    private func currentQualityMode() -> String {
+        guard let raw = try? String(contentsOf: qualityModeURL(), encoding: .utf8) else {
+            return "smooth"
+        }
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed == "sharp" ? "sharp" : "smooth"
+    }
+
+    private func qualityModeURL() -> URL {
+        let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
+            ?? URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("Library/Application Support")
+        return support.appendingPathComponent("Mirror/quality-mode")
     }
 
     private func runMirror() {
