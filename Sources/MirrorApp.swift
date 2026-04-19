@@ -647,22 +647,34 @@ private final class NavigationWindowController: NSWindowController {
             return
         }
 
-        guard let mirrorFrame = findMirrorWindowFrame() else {
-            if window.isVisible {
-                window.orderOut(nil)
+        if let mirrorFrame = findMirrorWindowFrame() {
+            let targetFrame = NSRect(
+                x: mirrorFrame.minX,
+                y: mirrorFrame.minY - Self.panelHeight,
+                width: mirrorFrame.width,
+                height: Self.panelHeight
+            )
+
+            if window.frame != targetFrame {
+                window.setFrame(targetFrame, display: true)
+            }
+            if !window.isVisible {
+                window.orderFront(nil)
             }
             return
         }
 
-        let targetFrame = NSRect(
-            x: mirrorFrame.minX,
-            y: mirrorFrame.minY - Self.panelHeight,
-            width: mirrorFrame.width,
-            height: Self.panelHeight
-        )
-
-        if window.frame != targetFrame {
-            window.setFrame(targetFrame, display: true)
+        // CGWindow lookup failed (Screen Recording permission not granted, etc).
+        // Park the panel near the bottom-center of the main screen so the user
+        // can still see and use the buttons.
+        if window.frame.origin == .zero, let screen = NSScreen.main {
+            let visible = screen.visibleFrame
+            let panelWidth: CGFloat = 320
+            let origin = NSPoint(
+                x: visible.midX - panelWidth / 2,
+                y: visible.minY + 60
+            )
+            window.setFrame(NSRect(x: origin.x, y: origin.y, width: panelWidth, height: Self.panelHeight), display: true)
         }
         if !window.isVisible {
             window.orderFront(nil)

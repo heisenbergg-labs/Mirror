@@ -346,12 +346,26 @@ fi
 SYNC_DIR="$HOME/Movies/Mirror"
 SYNCED_LOG="$STATE_DIR/synced-files"
 
-sync_new_videos() {
-  /bin/mkdir -p "$SYNC_DIR"
-  [[ -f "$SYNCED_LOG" ]] || /usr/bin/touch "$SYNCED_LOG"
+list_remote_videos() {
+  "$ADB" -s "$target" shell 'ls -1 /sdcard/DCIM/Camera/*.mp4 /sdcard/DCIM/Camera/*.MP4 /sdcard/DCIM/Camera/*.mov /sdcard/DCIM/Camera/*.MOV 2>/dev/null' 2>/dev/null | /usr/bin/tr -d '\r'
+}
 
+seed_synced_log_if_empty() {
+  /bin/mkdir -p "$SYNC_DIR"
+  if [[ -s "$SYNCED_LOG" ]]; then
+    return
+  fi
+  log "video sync: seeding baseline from existing camera files (won't pull these)"
+  local remote
+  list_remote_videos | while IFS= read -r remote; do
+    [[ -z "$remote" ]] && continue
+    print -r -- "${remote##*/}" >> "$SYNCED_LOG"
+  done
+}
+
+sync_new_videos() {
   local remote_files
-  remote_files="$("$ADB" -s "$target" shell 'ls -1 /sdcard/DCIM/Camera/*.mp4 /sdcard/DCIM/Camera/*.MP4 /sdcard/DCIM/Camera/*.mov /sdcard/DCIM/Camera/*.MOV 2>/dev/null' 2>/dev/null | /usr/bin/tr -d '\r')"
+  remote_files="$(list_remote_videos)"
   [[ -z "$remote_files" ]] && return
 
   while IFS= read -r remote; do
@@ -399,6 +413,8 @@ launch_helper() {
     args+=(--always-on-top)
     log "always-on-top enabled"
   fi
+
+  seed_synced_log_if_empty
 
   log "launching helper for $target"
   /usr/bin/open -n "$HELPER_APP" --args "${args[@]}"
