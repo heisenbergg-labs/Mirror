@@ -98,6 +98,7 @@ cat > "$HELPER_APP/Contents/Info.plist" <<'PLIST'
 </dict>
 </plist>
 PLIST
+rm -rf "$HELPER_APP/Contents/_CodeSignature"
 cp "$RUNTIME_SCRIPT" "$APP_DIR/Contents/Resources/mirror-runtime.sh"
 chmod +x "$APP_DIR/Contents/Resources/mirror-runtime.sh"
 cat > "$APP_DIR/Contents/Info.plist" <<'PLIST'
@@ -131,6 +132,9 @@ cat > "$APP_DIR/Contents/Info.plist" <<'PLIST'
 </dict>
 </plist>
 PLIST
+rm -rf "$APP_DIR/Contents/_CodeSignature"
+codesign --force --sign - "$HELPER_APP" >/dev/null 2>&1
+codesign --force --deep --sign - "$APP_DIR" >/dev/null 2>&1
 rm -rf "$DEST_APP"
 ditto "$APP_DIR" "$DEST_APP"
 touch "$DEST_APP"
